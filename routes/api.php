@@ -16,5 +16,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('tasks', TaskController::class);
     Route::get('/task/filter', [TaskController::class, 'filter']);
     Route::get('/task/search', [TaskController::class, 'search']);
+    Route::get('/task/export', [TaskController::class, 'export']);
  
 });

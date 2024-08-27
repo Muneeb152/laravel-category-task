@@ -7,6 +7,9 @@ use Illuminate\Http\Request;
 use App\Models\Task;
 use App\Models\Category;
 use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\TasksExport;
+
 
 class TaskController extends Controller
 {
@@ -145,6 +148,15 @@ public function search(Request $request)
         return response()->json(['error' => 'Failed to search tasks.'], 500);
     }
 }
+
+public function export()
+    {
+        try {
+            return Excel::download(new TasksExport, 'tasks.xlsx');
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to export tasks.'], 500);
+        }
+    }
 
 
 }
