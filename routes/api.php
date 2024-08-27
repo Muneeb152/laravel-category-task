@@ -14,7 +14,7 @@ Route::post('/logout', [LoginController::class, 'logout'])->middleware('auth:san
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('tasks', TaskController::class);
-    Route::get('/tasks/filter', [TaskController::class, 'filter']);
-    Route::get('/tasks/search', [TaskController::class, 'search']);
+    Route::get('/task/filter', [TaskController::class, 'filter']);
+    Route::get('/task/search', [TaskController::class, 'search']);
  
 });

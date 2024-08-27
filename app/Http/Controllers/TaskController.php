@@ -10,100 +10,141 @@ use Illuminate\Support\Facades\Storage;
 
 class TaskController extends Controller
 {
-   
     public function index()
     {
-        // Fetch tasks with their associated categories
-        $tasks = Task::with('category')->get();
-        
-        // Return the tasks as a JSON response
-        return response()->json($tasks);
+        try {
+            $tasks = Task::with('category')->get();
+            return response()->json($tasks);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve tasks.'], 500);
+        }
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'category_id' => 'required|exists:categories,id',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-        ]);
+        try {
+            $validatedData = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+                'category_id' => 'required|exists:categories,id',
+                'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            ]);
 
-        $data = $request->all();
-        if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('images', 'public');
-            $data['image'] = $imagePath;
+            $data = $validatedData;
+            if ($request->hasFile('image')) {
+                $imagePath = $request->file('image')->store('images', 'public');
+                $data['image'] = $imagePath;
+            }
+
+            $task = Task::create($data);
+            return response()->json([
+                'message' => 'Task created successfully.'
+            ], 201);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 422);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to create task.'], 500);
         }
-
-        $task = Task::create($data);
-        return response()->json($task, 201);
     }
 
-    public function show(Task $task): JsonResponse
+    public function show(Task $task)
     {
-        return response()->json($task->load('category'), 200);
+        try {
+            return response()->json($task->load('category'), 200);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Task not found.'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve task.'], 500);
+        }
     }
 
-    public function update(Request $request, Task $task): JsonResponse
+    public function update(Request $request, Task $task)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'category_id' => 'required|exists:categories,id',
-            'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-        ]);
+        try {
+            $validatedData = $request->validate([
+                'name' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+                'category_id' => 'required|exists:categories,id',
+                'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+            ]);
 
-        $data = $request->all();
-        if ($request->hasFile('image')) {
+            $data = $validatedData;
+            if ($request->hasFile('image')) {
+                if ($task->image) {
+                    Storage::disk('public')->delete($task->image);
+                }
+                $imagePath = $request->file('image')->store('images', 'public');
+                $data['image'] = $imagePath;
+            }
+
+            $task->update($data);
+            return response()->json($task, 200);
+        } catch (ValidationException $e) {
+            return response()->json(['error' => $e->errors()], 422);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Task not found.'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to update task.'], 500);
+        }
+    }
+
+    public function destroy(Task $task)
+    {
+        try {
             if ($task->image) {
                 Storage::disk('public')->delete($task->image);
             }
-            $imagePath = $request->file('image')->store('images', 'public');
-            $data['image'] = $imagePath;
+            $task->delete();
+            return response()->json([
+                'message' => 'Task deleted successfully.'
+            ], 201);
+        } catch (ModelNotFoundException $e) {
+            return response()->json(['error' => 'Task not found.'], 404);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Failed to delete task.'], 500);
         }
-
-        $task->update($data);
-        return response()->json($task, 200);
     }
 
-    public function destroy(Task $task): JsonResponse
-    {
-        if ($task->image) {
-            Storage::disk('public')->delete($task->image);
-        }
-        
-        $task->delete();
-        return response()->json(null, 204);
+    public function filter(Request $request)
+{
+    $query = Task::query();
+    if ($request->has('category_id')) {
+        $query->where('category_id', $request->category_id);
     }
 
-    public function filter(Request $request): JsonResponse
-    {
+    $tasks = $query->with('category')->get();
+
+    if ($tasks->isEmpty()) {
+        return response()->json(['message' => 'No tasks found for the given category.'], 404);
+    }
+
+    return response()->json($tasks, 200);
+}
+
+public function search(Request $request)
+{
+    try {
         $query = Task::query();
+        $searchTerm = $request->input('query', '');
 
-        if ($request->has('category_id')) {
-            $query->where('category_id', $request->category_id);
+        if ($searchTerm !== '') {
+            $query->where('name', 'like', '%' . $searchTerm . '%');
         }
 
-        if ($request->has('name')) {
-            $query->where('name', 'like', '%' . $request->name . '%');
+        $results = $query->with('category')->get();
+        if ($results->isEmpty()) {
+            return response()->json(['message' => 'No tasks found.'], 404);
         }
+        return response()->json($results, 200);
 
-        return response()->json($query->with('category')->get(), 200);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Failed to search tasks.'], 500);
     }
+}
 
-    public function search(Request $request): JsonResponse
-    {
-        $query = Task::query();
 
-        if ($request->has('query')) {
-            $query->where('name', 'like', '%' . $request->query . '%')
-                  ->orWhere('description', 'like', '%' . $request->query . '%');
-        }
-
-        return response()->json($query->with('category')->get(), 200);
-    }
 }
