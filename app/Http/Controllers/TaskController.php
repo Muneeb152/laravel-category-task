@@ -84,8 +84,7 @@ class TaskController extends Controller
             return response()->json(['error' => 'Failed to retrieve task.'], 500);
         }
     }
-
-    public function update(Request $request, Task $task)
+    public function update(Request $request, $id)
     {
         try {
             $validatedData = $request->validate([
@@ -96,8 +95,11 @@ class TaskController extends Controller
                 'category_id' => 'required|exists:categories,id',
                 'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             ]);
+    
+            $task = Task::findOrFail($id);
 
             $data = $validatedData;
+    
             if ($request->hasFile('image')) {
                 if ($task->image) {
                     Storage::disk('public')->delete($task->image);
@@ -105,18 +107,25 @@ class TaskController extends Controller
                 $imagePath = $request->file('image')->store('images', 'public');
                 $data['image'] = $imagePath;
             }
-
+    
+        
             $task->update($data);
-            return response()->json($task, 200);
-        } catch (ValidationException $e) {
-            return response()->json(['error' => $e->errors()], 422);
-        } catch (ModelNotFoundException $e) {
+    
+    
+            $task->image = $task->image ? asset('storage/' . $task->image) : null;
+            return response()->json([
+                'message' => 'Task updated successfully.',
+                'task' => $task
+            ], 200);
+    
+        } 
+         catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Task not found.'], 404);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to update task.'], 500);
         }
     }
-
+    
     public function destroy(Task $task)
     {
         try {
@@ -126,7 +135,7 @@ class TaskController extends Controller
             $task->delete();
             return response()->json([
                 'message' => 'Task deleted successfully.'
-            ], 201);
+            ], 200);
         } catch (ModelNotFoundException $e) {
             return response()->json(['error' => 'Task not found.'], 404);
         } catch (Exception $e) {
