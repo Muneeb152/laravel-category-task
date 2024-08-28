@@ -16,12 +16,27 @@ class TaskController extends Controller
     public function index()
     {
         try {
-            $tasks = Task::with('category')->get();
+            $userId = auth()->id(); 
+            $tasks = Task::with('category')
+                         ->get()
+                         ->map(function($task) {
+                             return [
+                                 'id' => $task->id,
+                                 'name' => $task->name,
+                                 'description' => $task->description,
+                                 'start_date' => $task->start_date,
+                                 'end_date' => $task->end_date,
+                                 'category_name' => $task->category->name, 
+                                 'image' => $task->image,
+                             ];
+                         });
+    
             return response()->json($tasks);
         } catch (Exception $e) {
             return response()->json(['error' => 'Failed to retrieve tasks.'], 500);
         }
     }
+    
 
     public function store(Request $request)
     {
