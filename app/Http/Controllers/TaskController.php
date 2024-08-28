@@ -26,8 +26,9 @@ class TaskController extends Controller
                                  'description' => $task->description,
                                  'start_date' => $task->start_date,
                                  'end_date' => $task->end_date,
+                                 'category_id' => $task->category->id,
                                  'category_name' => $task->category->name, 
-                                 'image' => $task->image,
+                                 'image' => $task->image ? asset('storage/' . $task->image) : null,
                              ];
                          });
     
@@ -49,16 +50,21 @@ class TaskController extends Controller
                 'category_id' => 'required|exists:categories,id',
                 'image' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
             ]);
-
+    
             $data = $validatedData;
+            $data['user_id'] = auth()->id();
+    
             if ($request->hasFile('image')) {
                 $imagePath = $request->file('image')->store('images', 'public');
                 $data['image'] = $imagePath;
             }
-
+    
             $task = Task::create($data);
+            $task->image = $task->image ? asset('storage/' . $task->image) : null;
+    
             return response()->json([
-                'message' => 'Task created successfully.'
+                'message' => 'Task created successfully.',
+                'task' => $task
             ], 201);
         } catch (ValidationException $e) {
             return response()->json(['error' => $e->errors()], 422);
@@ -66,6 +72,7 @@ class TaskController extends Controller
             return response()->json(['error' => 'Failed to create task.'], 500);
         }
     }
+    
 
     public function show(Task $task)
     {
